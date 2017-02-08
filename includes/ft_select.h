@@ -1,9 +1,11 @@
 #ifndef FT_SELECT_H
 # define FT_SELECT_H
 
-#include <termios.h>
-#include <curses.h>
-#include "../libft/libft.h"
+# include <termios.h>
+# include <curses.h>
+# include "../libft/libft.h"
+
+# define CURP	((t_param*)env->current_param->data)
 
 typedef struct		s_env
 {
@@ -27,6 +29,7 @@ typedef struct	s_param
 	char		*str;
 	t_pos		pos;
 	int			col;
+	char		selected;
 }				t_param;
 
 #endif

@@ -6,13 +6,12 @@
 /*   By: bdurst <marvin@42.fr>                      +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2017/02/07 23:29:23 by bdurst            #+#    #+#             */
-/*   Updated: 2017/02/08 02:51:21 by bdurst           ###   ########.fr       */
+/*   Updated: 2017/02/08 16:02:29 by bdurst           ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "ft_select.h"
 #include <term.h>
-# include <fcntl.h>
 
 static void		init_term(struct termios *term)
 {
@@ -82,6 +81,7 @@ static t_list	*get_params(int ac, char **av, t_env *env)
 	{
 		if (!(param = (t_param*)malloc(sizeof(t_param))))
 			reset_term(&env->old_term, 1);
+		param->selected = 0;
 		param->len = ft_strlen(av[i + 1]);
 		param->col = i / env->screen_height;
 		param->str = av[i + 1];
@@ -122,59 +122,135 @@ static void		get_param_by_end(t_list *elem, int y, t_env *env)
 	env->current_param = elem;
 }
 
+static void		reverse_video(t_env *env)
+{
+	tputs(tgetstr("mr", NULL), 1, &my_outc);
+	ft_putstr(CURP->str);
+	tputs(tgetstr("me", NULL), 1, &my_outc);
+}
+
+static void		up(t_env *env, char *res)
+{
+	if (CURP->selected)
+		reverse_video(env);
+	else
+		ft_putstr(CURP->str);
+	env->current_param = env->current_param->prev;
+	tputs(tgoto(res, CURP->pos.x, ((t_param*)env->current_param->data)->pos.y), 1, &my_outc);
+}
+
+static void		down(t_env *env, char *res, char arrow)
+{
+	if (arrow)
+	{
+		if (CURP->selected)
+			reverse_video(env);
+		else
+			ft_putstr(CURP->str);
+	}
+	env->current_param = env->current_param->next;
+	tputs(tgoto(res, CURP->pos.x, CURP->pos.y), 1, &my_outc);
+}
+
+static void		left(t_env *env, char *res)
+{
+	if (CURP->selected)
+		reverse_video(env);
+	else
+		ft_putstr(CURP->str);
+	if (CURP->col * env->screen_height + CURP->pos.y + 1 - env->screen_height >= 0)
+		get_param_prev_at(env->current_param, env->screen_height, env);
+	else
+		get_param_by_end(env->params->prev, CURP->pos.y, env);
+	tputs(tgoto(res, CURP->pos.x, CURP->pos.y), 1, &my_outc);
+}
+
+static void		right(t_env *env, char *res)
+{
+	if (CURP->selected)
+		reverse_video(env);
+	else
+		ft_putstr(CURP->str);
+	if ((CURP->col + 1) * env->screen_height + CURP->pos.y + 1 <= env->nb_params)
+		get_param_next_at(env->current_param, env->screen_height, env);
+	else if ((CURP->col + 1) * env->screen_height < env->nb_params)
+		env->current_param = env->params->prev;
+	else
+		get_param_next_at(env->params, CURP->pos.y, env);
+	tputs(tgoto(res, CURP->pos.x, CURP->pos.y), 1, &my_outc);
+}
+
+static void		underline(t_env *env)
+{
+	char			*area;
+	
+	/*tputs(tgoto(tgetstr("cm", &area), 60, 0), 1, &my_outc);
+	ft_putstr("x = ");
+	ft_putnbr(CURP->pos.x);
+	ft_putstr(" || y = ");
+	ft_putnbr(CURP->pos.y);
+	ft_putstr("\n");*/
+	tputs(tgoto(tgetstr("cm", &area), CURP->pos.x, CURP->pos.y), 1, &my_outc);
+	if (CURP->selected)
+	{
+		tputs(tgetstr("mr", &area), 1, &my_outc);
+		CURP->selected = 1;
+	}
+	tputs(tgetstr("us", &area), 1, &my_outc);
+	ft_putstr(CURP->str);
+	tputs(tgetstr("ue", &area), 1, &my_outc);
+	if (CURP->selected)
+		tputs(tgetstr("me", &area), 1, &my_outc);
+	/*tputs(tgoto(tgetstr("cm", &area), 60, 1), 1, &my_outc);
+	ft_putstr("x = ");
+	ft_putnbr(CURP->pos.x);
+	ft_putstr(" || y = ");
+	ft_putnbr(CURP->pos.y);
+	ft_putstr("\n");*/
+	tputs(tgoto(tgetstr("cm", &area), CURP->pos.x, CURP->pos.y), 1, &my_outc);
+}
+
 static void		get_stdin(t_env *env)
 {
 	int				ret;
 	char			*res;
 	char			*area;
 	char			buff[4];
-	t_param			*next;
 
-	next = env->params->prev->prev->data;
-	tputs(tgoto(res, next->pos.x, next->pos.y), 1, &my_outc);
+	res = tgetstr("cm", &area);
+	underline(env);
 	while ((ret = read(0, buff, 3)))
 	{
 		buff[ret] = 0;
-		res = tgetstr("cm", &area);
 		if (buff[0] == 27)
 		{
 			if (buff[1] == 0)
 				break ;
 			else if (buff[1] == '[' && buff[2] == 'A')
-			{
-				env->current_param = env->current_param->prev;
-				next = env->current_param->data;
-				tputs(tgoto(res, next->pos.x, next->pos.y), 1, &my_outc);
-			}
+				up(env, res);
 			else if (buff[1] == '[' && buff[2] == 'B')
-			{
-				env->current_param = env->current_param->next;
-				next = env->current_param->data;
-				tputs(tgoto(res, next->pos.x, next->pos.y), 1, &my_outc);
-			}
+				down(env, res, 1);
 			else if (buff[1] == '[' && buff[2] == 'D')
-			{
-				next = env->current_param->data;
-				if (next->col * env->screen_height + next->pos.y + 1 - env->screen_height >= 0)
-					get_param_prev_at(env->current_param, env->screen_height, env);
-				else
-					get_param_by_end(env->params->prev, next->pos.y, env);
-				next = env->current_param->data;
-				tputs(tgoto(res, next->pos.x, next->pos.y), 1, &my_outc);
-			}
+				left(env, res);
 			else if (buff[1] == '[' && buff[2] == 'C')
-			{
-				next = env->current_param->data;
-				if ((next->col + 1) * env->screen_height + next->pos.y + 1 <= env->nb_params)
-					get_param_next_at(env->current_param, env->screen_height, env);
-				else if ((next->col + 1) * env->screen_height < env->nb_params)
-					env->current_param = env->params->prev;
-				else
-					get_param_next_at(env->params, next->pos.y, env);
-				next = env->current_param->data;
-				tputs(tgoto(res, next->pos.x, next->pos.y), 1, &my_outc);
-			}
+				right(env, res);
+			underline(env);
 		}	
+		else if (buff[0] == ' ')
+		{
+			if (!CURP->selected)
+			{
+				reverse_video(env);
+				CURP->selected = 1;
+			}
+			else
+			{
+				ft_putstr(CURP->str);
+				CURP->selected = 0;
+			}
+			down(env, res, 0);
+			underline(env);
+		}
 	}
 }
 
