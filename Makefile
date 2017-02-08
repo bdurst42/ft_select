@@ -2,7 +2,7 @@ NAME = ft_select
 
 CC = gcc
 
-CFLAGS = -Wall -Wextra -Werror
+CFLAGS = -Wall -Wextra -Werror -g
 
 MFLAGS =
 

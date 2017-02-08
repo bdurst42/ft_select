@@ -45,7 +45,8 @@ SRC_LIST =		ft_create_node.c \
 				ft_add_list.c \
 				ft_bubblesort_list.c \
 				ft_insertsort_list.c \
-				ft_list_sort_rev.c
+				ft_list_sort_rev.c \
+				ft_pop_node.c
 
 SRC_C_LIST =	ft_c_node_push_back.c \
 				ft_c_node_push_front.c \

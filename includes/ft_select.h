@@ -5,14 +5,14 @@
 # include <curses.h>
 # include "../libft/libft.h"
 
-# define CURP	((t_param*)env->current_param->data)
+# define CURP	((t_param*)(*env->current_param)->data)
 
 typedef struct		s_env
 {
 	int				max_len;
 	int				nb_params;
 	t_list			*params;
-	t_list			*current_param;
+	t_list			**current_param;
 	struct termios	old_term;
 	int				screen_height;
 }					t_env;
