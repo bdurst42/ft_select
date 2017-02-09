@@ -6,7 +6,7 @@
 /*   By: bdurst <marvin@42.fr>                      +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2014/12/12 13:14:16 by bdurst            #+#    #+#             */
-/*   Updated: 2017/02/08 21:15:12 by bdurst           ###   ########.fr       */
+/*   Updated: 2017/02/09 14:20:06 by bdurst           ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -36,7 +36,7 @@ void				ft_bubblesort_list(t_list **begin_list, int (*cmp)
 void				ft_insertsort_list(t_list **bg_list, void *data,
 					int (*cmp)(void *right, void *left));
 void				ft_clear_list(t_list **list, void (*fct_free)(void *));
-void				ft_pop_node(t_list **node, void (*fct_free)(void *));
+void				ft_pop_node(t_list *node, void (*fct_free)(void *));
 int					ft_list_size(t_list *begin_list);
 
 void				ft_c_node_push_back(t_list **begin_list, void *data);

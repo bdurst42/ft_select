@@ -3,16 +3,18 @@
 
 # include <termios.h>
 # include <curses.h>
+# include <sys/ioctl.h>
 # include "../libft/libft.h"
 
-# define CURP	((t_param*)(*env->current_param)->data)
+# define CURP	((t_param*)g_env.current_param->data)
 
 typedef struct		s_env
 {
 	int				max_len;
 	int				nb_params;
+	int				nb_selected;
 	t_list			*params;
-	t_list			**current_param;
+	t_list			*current_param;
 	struct termios	old_term;
 	int				screen_height;
 }					t_env;

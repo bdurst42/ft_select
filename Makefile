@@ -28,7 +28,7 @@ RM = /bin/rm -rf
 all: mkdirobj $(DEP_OBJ)
 	@ make -C $(DIR_LIB)
 	@ /bin/echo -n "Archiving object in $(NAME):"
-	@ $(CC) -o $(NAME) $(OBJS) $(MFLAGS) -L $(DIR_LIB) -lft -lncurses
+	@ $(CC) -o $(NAME) $(OBJS) $(MFLAGS) -L $(DIR_LIB) -lft -ltermcap
 	@ echo " \033[32mAll done!\033[0m"
 
 $(DIR_OBJ)%.o: $(SRC_DIR)%.c
