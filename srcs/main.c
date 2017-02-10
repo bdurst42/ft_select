@@ -6,7 +6,7 @@
 /*   By: bdurst <marvin@42.fr>                      +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2017/02/07 23:29:23 by bdurst            #+#    #+#             */
-/*   Updated: 2017/02/09 18:09:54 by bdurst           ###   ########.fr       */
+/*   Updated: 2017/02/10 17:24:48 by bdurst           ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -38,7 +38,7 @@ static void		init_term(struct termios *term)
 
 static int		my_outc(int c)
 {
-	ft_putchar(c);
+	ft_fputchar(c, g_env.fd);
 	return (0);
 }
 
@@ -54,6 +54,7 @@ static char		term_clear()
 
 static void		reset_term(char out)
 {
+	term_clear();
 	if (tcsetattr(0, TCSADRAIN, &g_env.old_term) == -1)
 	{
 		ft_putendl("tcsetattr failure");
@@ -127,7 +128,7 @@ static void		get_param_by_end(t_list *elem, int y)
 static void		reverse_video(char *str)
 {
 	tputs(tgetstr("mr", NULL), 1, &my_outc);
-	ft_putstr(str);
+	ft_fputstr(str, g_env.fd);
 	tputs(tgetstr("me", NULL), 1, &my_outc);
 }
 
@@ -136,7 +137,7 @@ static void		up(char *res)
 	if (CURP->selected)
 		reverse_video(CURP->str);
 	else
-		ft_putstr(CURP->str);
+		ft_fputstr(CURP->str, g_env.fd);
 	g_env.current_param = g_env.current_param->prev;
 	tputs(tgoto(res, CURP->pos.x, CURP->pos.y), 1, &my_outc);
 }
@@ -148,7 +149,7 @@ static void		down(char *res, char arrow)
 		if (CURP->selected)
 			reverse_video(CURP->str);
 		else
-			ft_putstr(CURP->str);
+			ft_fputstr(CURP->str, g_env.fd);
 	}
 	g_env.current_param = g_env.current_param->next;
 	tputs(tgoto(res, CURP->pos.x, CURP->pos.y), 1, &my_outc);
@@ -159,7 +160,7 @@ static void		left(char *res)
 	if (CURP->selected)
 		reverse_video(CURP->str);
 	else
-		ft_putstr(CURP->str);
+		ft_fputstr(CURP->str, g_env.fd);
 	if (CURP->col * g_env.screen_height + CURP->pos.y + 1 - g_env.screen_height >= 0)
 		get_param_prev_at(g_env.current_param, g_env.screen_height);
 	else if (g_env.nb_params > g_env.screen_height)
@@ -172,7 +173,7 @@ static void		right(char *res)
 	if (CURP->selected)
 		reverse_video(CURP->str);
 	else
-		ft_putstr(CURP->str);
+		ft_fputstr(CURP->str, g_env.fd);
 	if ((CURP->col + 1) * g_env.screen_height + CURP->pos.y + 1 <= g_env.nb_params)
 		get_param_next_at(g_env.current_param, g_env.screen_height);
 	else if ((CURP->col + 1) * g_env.screen_height < g_env.nb_params)
@@ -191,7 +192,7 @@ static void		underline(void)
 		CURP->selected = 1;
 	}
 	tputs(tgetstr("us", NULL), 1, &my_outc);
-	ft_putstr(CURP->str);
+	ft_fputstr(CURP->str, g_env.fd);
 	tputs(tgetstr("ue", NULL), 1, &my_outc);
 	if (CURP->selected)
 		tputs(tgetstr("me", NULL), 1, &my_outc);
@@ -216,7 +217,7 @@ static void		print_list(char first)
 	if (param->selected)
 		reverse_video(param->str);
 	else
-		ft_putstr(param->str);
+		ft_fputstr(param->str, g_env.fd);
 	tmp = tmp->next;
 	while (tmp != g_env.params)
 	{
@@ -228,7 +229,7 @@ static void		print_list(char first)
 		if (param->selected)
 			reverse_video(param->str);
 		else
-			ft_putstr(param->str);
+			ft_fputstr(param->str, g_env.fd);
 		tmp = tmp->next;
 	}
 	if (first)
@@ -335,7 +336,7 @@ static int		get_stdin(void)
 			}
 			else
 			{
-				ft_putstr(CURP->str);
+				ft_fputstr(CURP->str, g_env.fd);
 				CURP->selected = 0;
 				--g_env.nb_selected;
 			}
@@ -370,6 +371,36 @@ static void		stop_term(int sig)
 	(void)sig;
 }
 
+static void		take_back(int sig)
+{
+	if (tcsetattr(0, TCSADRAIN, &g_env.old_term) == -1)
+	{
+		ft_putendl("tcsetattr failure");
+		exit(-1);
+	}
+	term_clear();
+	(void)sig;
+}
+
+static void		save_term(int sig)
+{
+	struct termios	term;
+	char			cp[2];
+
+	term = g_env.old_term;
+	if (tcgetattr(0, &g_env.old_term) == -1)
+		ft_putendl("tcgetattr failure");
+	if (tcsetattr(0, TCSADRAIN, &term) == -1)
+		ft_putendl("tcsetattr failure");
+	signal(SIGTSTP, SIG_DFL);
+	term_clear();
+	cp[0] = g_env.old_term.c_cc[VSUSP];
+	cp[1] = '\0';
+	ioctl(0, TIOCSTI, cp);
+	term_clear();
+	(void)sig;
+}
+
 static void		signals_set(void)
 {
 	signal(SIGABRT, &stop_term);
@@ -384,7 +415,7 @@ static void		signals_set(void)
 	signal(SIGPROF, &stop_term);
 	signal(SIGQUIT, &stop_term);
 	signal(SIGSEGV, &stop_term);
-	signal(SIGSTOP, &save_term);
+	signal(SIGTSTP, &save_term);
 	signal(SIGSYS, &stop_term);
 	signal(SIGTERM, &stop_term);
 	signal(SIGTRAP, &stop_term);
@@ -434,6 +465,7 @@ int              main(int ac, char **av)
 {
 	struct termios	term;
 	int				ret;
+	char			*name;
 
 	if (ac < 2)
 	{
@@ -449,6 +481,8 @@ int              main(int ac, char **av)
 	g_env.nb_selected = 0;
 	g_env.current_param = g_env.params;
 	g_env.old_term = term;
+	if (!(name = ttyname(0)) && (g_env.fd = open(name, O_WRONLY)) == -1)
+		reset_term(1);
 	term.c_lflag &= ~(ICANON);
 	term.c_lflag &= ~(ECHO);
 	term.c_cc[VMIN] = 1;
@@ -463,7 +497,6 @@ int              main(int ac, char **av)
 	print_list(1);
 	ret = get_stdin();
 	reset_term(0);
-	term_clear();
 	if (ret)
 		display_selected_param();
 	return (0);

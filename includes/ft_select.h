@@ -4,6 +4,7 @@
 # include <termios.h>
 # include <curses.h>
 # include <sys/ioctl.h>
+# include <fcntl.h>
 # include "../libft/libft.h"
 
 # define CURP	((t_param*)g_env.current_param->data)
@@ -17,6 +18,7 @@ typedef struct		s_env
 	t_list			*current_param;
 	struct termios	old_term;
 	int				screen_height;
+	int				fd;
 }					t_env;
 
 typedef struct	s_pos
