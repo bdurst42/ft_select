@@ -16,9 +16,13 @@ typedef struct		s_env
 	int				nb_selected;
 	t_list			*params;
 	t_list			*current_param;
+	t_list			*start;
+	t_list			*end;
 	struct termios	old_term;
 	int				screen_height;
+	int				screen_width;
 	int				fd;
+	char				search;
 }					t_env;
 
 typedef struct	s_pos
@@ -35,5 +39,7 @@ typedef struct	s_param
 	int			col;
 	char		selected;
 }				t_param;
+
+int				nmatch(char *s1, char *s2);
 
 #endif

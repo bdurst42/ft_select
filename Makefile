@@ -16,7 +16,7 @@ SRC_DIR = ./srcs/
 
 MAIN = main.c
 
-FILES = 
+FILES = nmatch.c 
 
 OBJS = $(patsubst %.c, $(DIR_OBJ)%.o, $(FILES)) $(patsubst %.c, $(DIR_OBJ)%.o, $(MAIN))
 

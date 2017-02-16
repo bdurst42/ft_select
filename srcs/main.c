@@ -58,10 +58,14 @@ static void		reset_term(char out)
 	if (tcsetattr(0, TCSADRAIN, &g_env.old_term) == -1)
 	{
 		ft_putendl("tcsetattr failure");
+		close(g_env.fd);
 		exit(-1);
 	}
 	if (out)
+	{
 		exit(-1);
+		close(g_env.fd);
+	}
 }
 
 static t_list	*get_params(int ac, char **av)
@@ -70,6 +74,7 @@ static t_list	*get_params(int ac, char **av)
 	t_list	*params;
 	t_param *param;
 	int		len;
+	int		max_params;
 
 	params = NULL;
 	i = -1;
@@ -79,6 +84,7 @@ static t_list	*get_params(int ac, char **av)
 		if (len > g_env.max_len)
 			g_env.max_len = len;
 	}
+	max_params = g_env.screen_height * (g_env.screen_width / (g_env.max_len + 1));
 	i = -1;
 	while (++i < ac)
 	{
@@ -86,12 +92,22 @@ static t_list	*get_params(int ac, char **av)
 			reset_term(1);
 		param->selected = 0;
 		param->len = ft_strlen(av[i + 1]);
-		param->col = i / g_env.screen_height;
 		param->str = av[i + 1];
-		param->pos.y = i % g_env.screen_height;
-		param->pos.x = param->col * (g_env.max_len + 1);
+		if (i <= max_params)
+		{
+			param->col = i / g_env.screen_height;
+			param->pos.y = i % g_env.screen_height;
+			param->pos.x = param->col * (g_env.max_len + 1);
+		}
+		else
+			param->col = -1;
+		if (i == max_params)
+			g_env.end = params->prev;
 		ft_c_node_push_back(&params, param);
 	}
+	g_env.start = params;
+	if (!g_env.end)
+		g_env.end = params->prev;
 	return (params);
 }
 
@@ -187,10 +203,7 @@ static void		underline(void)
 {
 	tputs(tgoto(tgetstr("cm", NULL), CURP->pos.x, CURP->pos.y), 1, &my_outc);
 	if (CURP->selected)
-	{
 		tputs(tgetstr("mr", NULL), 1, &my_outc);
-		CURP->selected = 1;
-	}
 	tputs(tgetstr("us", NULL), 1, &my_outc);
 	ft_fputstr(CURP->str, g_env.fd);
 	tputs(tgetstr("ue", NULL), 1, &my_outc);
@@ -208,18 +221,8 @@ static void		print_list(char first)
 
 	res = tgetstr("cm", NULL);
 	i = -1;
-	tmp = g_env.params;
-	param = tmp->data;
-	param->col = ++i / g_env.screen_height;
-	param->pos.y = i % g_env.screen_height;
-	param->pos.x = param->col * (g_env.max_len + 1);
-	tputs(tgoto(res, param->pos.x, param->pos.y), 1, &my_outc);
-	if (param->selected)
-		reverse_video(param->str);
-	else
-		ft_fputstr(param->str, g_env.fd);
-	tmp = tmp->next;
-	while (tmp != g_env.params)
+	tmp = g_env.start;
+	while (tmp != g_env.end->next || i == -1)
 	{
 		param = tmp->data;
 		param->col = ++i / g_env.screen_height;
@@ -301,21 +304,159 @@ static void		delete_param(void)
 	print_list(0);
 }
 
+static void		clear_last_searchs(void)
+{
+	t_list	*tmp;
+	t_param	*param;
+
+		param = NULL;
+		tmp = g_env.start;
+		while (tmp != g_env.end->next || !param)
+		{
+			param = tmp->data;
+		if (param->selected == 2)
+		{
+			tputs(tgoto(tgetstr("cm", NULL), param->pos.x, param->pos.y), 1, &my_outc);
+			ft_fputstr(param->str, g_env.fd);
+				param->selected = 0;
+				--g_env.nb_selected;
+		}
+		tmp = tmp->next;
+		}
+		tputs(tgoto(tgetstr("cm", NULL), CURP->pos.x, CURP->pos.y), 1, &my_outc);
+}
+
+static void		search(char *str)
+{
+	t_list	*tmp;
+	t_param	*param;
+	int		len;
+
+	clear_last_searchs();
+	param = NULL;
+	if ((len = ft_strlen(str)) > g_env.max_len)
+			  return ;
+	tmp = g_env.start;
+	while (tmp != g_env.end->next || !param)
+	{
+			  param = tmp->data;
+			  if (!ft_strncmp(str, param->str, len) || (ft_strchr(str, '*') && nmatch(param->str, str)))
+			  {
+						 if (CURP->selected)
+									reverse_video(CURP->str);
+						 else
+									ft_fputstr(CURP->str, g_env.fd);
+						 g_env.current_param = tmp;
+						 tputs(tgoto(tgetstr("cm", NULL), CURP->pos.x, CURP->pos.y), 1, &my_outc);
+						 reverse_video(param->str);
+						 tputs(tgoto(tgetstr("cm", NULL), CURP->pos.x, CURP->pos.y), 1, &my_outc);
+						 param->selected = 2;
+						 ++g_env.nb_selected;
+			  }
+			  tmp = tmp->next;
+	}
+	underline();
+}
+
+static void		deselect_all(void)
+{
+		  t_list	*tmp;
+		  t_param	*param;
+
+		  tmp = g_env.params;
+		  param = tmp->data;
+		  if (param->selected)
+		  {
+					 tputs(tgoto(tgetstr("cm", NULL), param->pos.x, param->pos.y), 1, &my_outc);
+					 ft_fputstr(param->str, g_env.fd);
+					 --g_env.nb_selected;
+					 param->selected = 0;
+		  }
+		  tmp = tmp->next;
+		  while (tmp != g_env.params)
+		  {
+					 param = tmp->data;
+					 if (param->selected)
+					 {
+								tputs(tgoto(tgetstr("cm", NULL), param->pos.x, param->pos.y), 1, &my_outc);
+								ft_fputstr(param->str, g_env.fd);
+						 --g_env.nb_selected;
+						 param->selected = 0;
+			  }
+			  tmp = tmp->next;
+	}
+	tputs(tgoto(tgetstr("cm", NULL), CURP->pos.x, CURP->pos.y), 1, &my_outc);
+	underline();
+}
+
+static void		select_all(void)
+{
+	t_list	*tmp;
+	t_param	*param;
+
+	tmp = g_env.params;
+	param = tmp->data;
+	if (!param->selected)
+	{
+		tputs(tgoto(tgetstr("cm", NULL), param->pos.x, param->pos.y), 1, &my_outc);
+		reverse_video(param->str);
+		++g_env.nb_selected;
+		param->selected = 1;
+	}
+	tmp = tmp->next;
+	while (tmp != g_env.params)
+	{
+			  param = tmp->data;
+			  if (!param->selected)
+			  {
+						 tputs(tgoto(tgetstr("cm", NULL), param->pos.x, param->pos.y), 1, &my_outc);
+						 reverse_video(param->str);
+						 ++g_env.nb_selected;
+						 param->selected = 1;
+			  }
+			  tmp = tmp->next;
+	}
+	tputs(tgoto(tgetstr("cm", NULL), CURP->pos.x, CURP->pos.y), 1, &my_outc);
+	underline();
+}
+static void	free_strjoin(char *s1, char **s2, char c)
+{
+	char	*tmp;
+
+	tmp = *s2;
+  	if (c)
+		*s2 = ft_strjoin(s1, *s2);
+	else
+		*s2 = ft_strjoin(*s2, s1);
+	if (tmp)
+		free(tmp);
+}
+
 static int		get_stdin(void)
 {
 	int				ret;
 	char			*res;
 	char			buff[4];
+	char			*srch;
 
 	res = tgetstr("cm", NULL);
 	underline();
+	srch = NULL;
 	while ((ret = read(0, buff, 3)))
 	{
 		buff[ret] = 0;
 		if (buff[0] == 27)
 		{
 			if (buff[1] == 0)
-				return (0);
+			{
+				if (g_env.search)
+				{
+					g_env.search = 0;
+					srch = NULL;
+				}
+				else
+					return (0);
+			}
 			else if (buff[1] == '[' && buff[2] == 'A')
 				up(res);
 			else if (buff[1] == '[' && buff[2] == 'B')
@@ -350,18 +491,40 @@ static int		get_stdin(void)
 		}
 		else if (buff[0] == 10)
 			return (1);
+		else if (buff[0] == 's' && !g_env.search)
+			g_env.search = 1;
+		else if (g_env.search && ft_isprint(buff[0]))
+		{
+			free_strjoin(buff, &srch, 0);
+			search(srch);
+		}
+		else if (buff[0] == 1 && !buff[1])
+			select_all();
+		else if (buff[0] == 23 && !buff[1])
+			deselect_all();
 	}
 	return (0);
 }
 
-static void		update_window(int sig)
+static void		get_new_window_size(void)
 {
 	struct winsize	w_size;
 
-	term_clear();
 	ioctl(0, TIOCGWINSZ, &w_size);
 	g_env.screen_height = w_size.ws_row;
-	print_list(0);
+	g_env.screen_width = w_size.ws_col;
+}
+
+static void		update_window(int first)
+{
+	term_clear();
+	get_new_window_size();
+	print_list(first);
+}
+
+static void		move_window_event(int sig)
+{
+	update_window(0);
 	(void)sig;
 }
 
@@ -379,6 +542,8 @@ static void		take_back(int sig)
 		exit(-1);
 	}
 	term_clear();
+	print_list(0);
+	get_stdin();
 	(void)sig;
 }
 
@@ -393,7 +558,6 @@ static void		save_term(int sig)
 	if (tcsetattr(0, TCSADRAIN, &term) == -1)
 		ft_putendl("tcsetattr failure");
 	signal(SIGTSTP, SIG_DFL);
-	term_clear();
 	cp[0] = g_env.old_term.c_cc[VSUSP];
 	cp[1] = '\0';
 	ioctl(0, TIOCSTI, cp);
@@ -429,7 +593,7 @@ static void		signals_set(void)
 	signal(SIGXCPU, &stop_term);
 	signal(SIGXFSZ, &stop_term);
 	signal(SIGCONT, &take_back);
-	signal(SIGWINCH, &update_window);
+	signal(SIGWINCH, &move_window_event);
 }
 
 static void		display_selected_param(void)
@@ -475,13 +639,14 @@ int              main(int ac, char **av)
 	init_term(&term);
 	signals_set();
 	ft_bzero(&g_env, sizeof(g_env));
-	g_env.screen_height = tgetnum("li");
+	get_new_window_size();
 	g_env.params = get_params(ac - 1, av);
 	g_env.nb_params = ac - 1;
 	g_env.nb_selected = 0;
+	g_env.search = 0;
 	g_env.current_param = g_env.params;
 	g_env.old_term = term;
-	if (!(name = ttyname(0)) && (g_env.fd = open(name, O_WRONLY)) == -1)
+	if (!(isatty(0)) || !(name = ttyname(0)) || ((g_env.fd = open(name, O_WRONLY)) == -1))
 		reset_term(1);
 	term.c_lflag &= ~(ICANON);
 	term.c_lflag &= ~(ECHO);
@@ -490,6 +655,7 @@ int              main(int ac, char **av)
 	if (tcsetattr(0, TCSADRAIN, &term) == -1)
 	{
 		ft_putendl("tcsetattr failure");
+		close(g_env.fd);
 		return (-1);
 	}
 	if (term_clear() == -1)
@@ -499,5 +665,6 @@ int              main(int ac, char **av)
 	reset_term(0);
 	if (ret)
 		display_selected_param();
+	close(g_env.fd);
 	return (0);
 }
