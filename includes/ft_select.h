@@ -8,6 +8,8 @@
 # include "../libft/libft.h"
 
 # define CURP	((t_param*)g_env.current_param->data)
+# define STT	((t_param*)g_env.start->data)
+# define END	((t_param*)g_env.end->data)
 
 typedef struct		s_env
 {
@@ -23,6 +25,8 @@ typedef struct		s_env
 	int				screen_width;
 	int				fd;
 	char				search;
+	int				max_params;
+	int				save_stdout;
 }					t_env;
 
 typedef struct	s_pos
@@ -41,5 +45,6 @@ typedef struct	s_param
 }				t_param;
 
 int				nmatch(char *s1, char *s2);
+void				signals_set(void);
 
 #endif

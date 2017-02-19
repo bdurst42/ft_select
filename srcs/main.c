@@ -61,6 +61,7 @@ static void		reset_term(char out)
 		close(g_env.fd);
 		exit(-1);
 	}
+	ft_fputstr(tgetstr("te", NULL), g_env.fd);
 	if (out)
 	{
 		exit(-1);
@@ -74,7 +75,6 @@ static t_list	*get_params(int ac, char **av)
 	t_list	*params;
 	t_param *param;
 	int		len;
-	int		max_params;
 
 	params = NULL;
 	i = -1;
@@ -84,7 +84,6 @@ static t_list	*get_params(int ac, char **av)
 		if (len > g_env.max_len)
 			g_env.max_len = len;
 	}
-	max_params = g_env.screen_height * (g_env.screen_width / (g_env.max_len + 1));
 	i = -1;
 	while (++i < ac)
 	{
@@ -93,15 +92,13 @@ static t_list	*get_params(int ac, char **av)
 		param->selected = 0;
 		param->len = ft_strlen(av[i + 1]);
 		param->str = av[i + 1];
-		if (i <= max_params)
+		if (i <= g_env.max_params)
 		{
 			param->col = i / g_env.screen_height;
 			param->pos.y = i % g_env.screen_height;
 			param->pos.x = param->col * (g_env.max_len + 1);
 		}
-		else
-			param->col = -1;
-		if (i == max_params)
+		if (i == g_env.max_params)
 			g_env.end = params->prev;
 		ft_c_node_push_back(&params, param);
 	}
@@ -150,69 +147,34 @@ static void		reverse_video(char *str)
 
 static void		up(char *res)
 {
-	if (CURP->selected)
-		reverse_video(CURP->str);
-	else
-		ft_fputstr(CURP->str, g_env.fd);
-	g_env.current_param = g_env.current_param->prev;
-	tputs(tgoto(res, CURP->pos.x, CURP->pos.y), 1, &my_outc);
+	if (g_env.nb_params <= g_env.max_params || g_env.current_param != g_env.start)
+	{
+			  if (CURP->selected)
+						 reverse_video(CURP->str);
+			  else
+						 ft_fputstr(CURP->str, g_env.fd);
+			  g_env.current_param = g_env.current_param->prev;
+			  tputs(tgoto(res, CURP->pos.x, CURP->pos.y), 1, &my_outc);
+	}
 }
 
 static void		down(char *res, char arrow)
 {
-	if (arrow)
+	if (g_env.nb_params <= g_env.max_params || g_env.current_param != g_env.end)
 	{
-		if (CURP->selected)
-			reverse_video(CURP->str);
-		else
-			ft_fputstr(CURP->str, g_env.fd);
+			  if (arrow)
+			  {
+						 if (CURP->selected)
+									reverse_video(CURP->str);
+						 else
+									ft_fputstr(CURP->str, g_env.fd);
+			  }
+			  g_env.current_param = g_env.current_param->next;
+			  tputs(tgoto(res, CURP->pos.x, CURP->pos.y), 1, &my_outc);
 	}
-	g_env.current_param = g_env.current_param->next;
-	tputs(tgoto(res, CURP->pos.x, CURP->pos.y), 1, &my_outc);
 }
 
-static void		left(char *res)
-{
-	if (CURP->selected)
-		reverse_video(CURP->str);
-	else
-		ft_fputstr(CURP->str, g_env.fd);
-	if (CURP->col * g_env.screen_height + CURP->pos.y + 1 - g_env.screen_height >= 0)
-		get_param_prev_at(g_env.current_param, g_env.screen_height);
-	else if (g_env.nb_params > g_env.screen_height)
-		get_param_by_end(g_env.params->prev, CURP->pos.y);
-	tputs(tgoto(res, CURP->pos.x, CURP->pos.y), 1, &my_outc);
-}
-
-static void		right(char *res)
-{
-	if (CURP->selected)
-		reverse_video(CURP->str);
-	else
-		ft_fputstr(CURP->str, g_env.fd);
-	if ((CURP->col + 1) * g_env.screen_height + CURP->pos.y + 1 <= g_env.nb_params)
-		get_param_next_at(g_env.current_param, g_env.screen_height);
-	else if ((CURP->col + 1) * g_env.screen_height < g_env.nb_params)
-		g_env.current_param = g_env.params->prev;
-	else if (g_env.nb_params > g_env.screen_height)
-		get_param_next_at(g_env.params, CURP->pos.y);
-	tputs(tgoto(res, CURP->pos.x, CURP->pos.y), 1, &my_outc);
-}
-
-static void		underline(void)
-{
-	tputs(tgoto(tgetstr("cm", NULL), CURP->pos.x, CURP->pos.y), 1, &my_outc);
-	if (CURP->selected)
-		tputs(tgetstr("mr", NULL), 1, &my_outc);
-	tputs(tgetstr("us", NULL), 1, &my_outc);
-	ft_fputstr(CURP->str, g_env.fd);
-	tputs(tgetstr("ue", NULL), 1, &my_outc);
-	if (CURP->selected)
-		tputs(tgetstr("me", NULL), 1, &my_outc);
-	tputs(tgoto(tgetstr("cm", NULL), CURP->pos.x, CURP->pos.y), 1, &my_outc);
-}
-
-static void		print_list(char first)
+static void		print_list(void)
 {
 	t_list	*tmp;
 	t_param	*param;
@@ -235,10 +197,111 @@ static void		print_list(char first)
 			ft_fputstr(param->str, g_env.fd);
 		tmp = tmp->next;
 	}
-	if (first)
-		tputs(tgoto(res, 0, 0), 1, &my_outc);
+	tputs(tgoto(res, CURP->pos.x, CURP->pos.y), 1, &my_outc);
+}
+
+static void		right_shift(void)
+{
+	t_list	*tmp;
+	t_list	*tmpbis;
+	t_param	*param;
+	t_param	*parambis;
+	int		i;
+
+	tmp = g_env.start;
+	tmpbis = g_env.start;
+	i = -1;
+	while (++i < g_env.screen_height)
+		tmpbis = tmpbis->prev;
+	g_env.start = tmpbis;
+	while (tmp != g_env.end)
+	{
+		param = tmp->data;
+		parambis = tmpbis->data;
+		parambis->col = param->col;
+		parambis->pos = param->pos;
+		tmp = tmp->next;
+		tmpbis = tmpbis->next;
+	}
+	g_env.end = tmpbis;
+	term_clear();
+	print_list();
+	g_env.max_params = g_env.screen_height * (g_env.screen_width / (g_env.max_len + 1));
+	g_env.max_params = g_env.screen_height * (g_env.screen_width / (g_env.max_len + 1));
+	g_env.max_params = g_env.screen_height * (g_env.screen_width / (g_env.max_len + 1));
+}
+
+static void		left(char *res)
+{
+	if (CURP->selected)
+		reverse_video(CURP->str);
 	else
-		tputs(tgoto(res, CURP->pos.x, CURP->pos.y), 1, &my_outc);
+		ft_fputstr(CURP->str, g_env.fd);
+	if (g_env.nb_params > g_env.max_params && !CURP->col)
+		right_shift();
+	if (CURP->col * g_env.screen_height + CURP->pos.y + 1 - g_env.screen_height >= 0)
+		get_param_prev_at(g_env.current_param, g_env.screen_height);
+	else if (g_env.nb_params > g_env.screen_height)
+		get_param_by_end(g_env.params->prev, CURP->pos.y);
+	tputs(tgoto(res, CURP->pos.x, CURP->pos.y), 1, &my_outc);
+}
+
+static void		left_shift(void)
+{
+	t_list	*tmp;
+	t_list	*tmpbis;
+	t_param	*param;
+	t_param	*parambis;
+	int		i;
+
+	tmp = g_env.end;
+	tmpbis = g_env.end;
+	i = -1;
+	while (++i < g_env.screen_height)
+		tmpbis = tmpbis->next;
+	g_env.end = tmpbis;
+	while (tmp != g_env.start)
+	{
+		param = tmp->data;
+		parambis = tmpbis->data;
+		parambis->col = param->col;
+		parambis->pos = param->pos;
+		tmp = tmp->prev;
+		tmpbis = tmpbis->prev;
+	}
+	g_env.start = tmpbis;
+	term_clear();
+	print_list();
+}
+
+static void		right(char *res)
+{
+	if (CURP->selected)
+		reverse_video(CURP->str);
+	else
+		ft_fputstr(CURP->str, g_env.fd);
+	if (g_env.nb_params > g_env.max_params && (CURP->col + 1) == g_env.screen_width / (g_env.max_len + 1))
+		left_shift();
+	if ((CURP->col + 1) * g_env.screen_height + CURP->pos.y + 1 <= g_env.nb_params)
+		get_param_next_at(g_env.current_param, g_env.screen_height);
+	else if ((CURP->col + 1) * g_env.screen_height < g_env.nb_params)
+		g_env.current_param = g_env.params->prev;
+	else if (g_env.nb_params > g_env.screen_height)
+		get_param_next_at(g_env.params, CURP->pos.y);
+	tputs(tgoto(res, CURP->pos.x, CURP->pos.y), 1, &my_outc);
+}
+
+static void		underline(void)
+{
+	tputs(tgoto(tgetstr("cm", NULL), CURP->pos.x, CURP->pos.y), 1, &my_outc);
+	if (CURP->selected)
+		tputs(tgetstr("mr", NULL), 1, &my_outc);
+	tputs(tgetstr("us", NULL), 1, &my_outc);
+	ft_fputstr(CURP->str, g_env.fd);
+	tputs(tgetstr("ue", NULL), 1, &my_outc);
+	if (CURP->selected)
+		tputs(tgetstr("me", NULL), 1, &my_outc);
+	tputs(tgoto(tgetstr("cm", NULL), CURP->pos.x, CURP->pos.y), 1, &my_outc);
 }
 
 static void		compute_max_len(void)
@@ -273,13 +336,14 @@ static void		move_pos(void)
 	t_param	*param;
 	t_param	*prev_param;
 
-	tmp = g_env.params->prev;
+	tmp = g_env.end;
 	while (tmp != g_env.current_param)
 	{
 		param = tmp->data;
 		prev_param = tmp->prev->data;
 		param->pos.x = prev_param->pos.x;
 		param->pos.y = prev_param->pos.y;
+		param->col = prev_param->col;
 		tmp = tmp->prev;
 	}
 }
@@ -290,18 +354,24 @@ static void		delete_param(void)
 
 	if (CURP->len == g_env.max_len)
 		compute_max_len();
+	if (g_env.nb_params > g_env.max_params)
+		g_env.end = g_env.end->next;
 	move_pos();
 	prev = g_env.current_param->prev;
 	g_env.current_param = g_env.current_param->next;
 	if (g_env.current_param->prev == g_env.params)
 		g_env.params = g_env.params->next;
+	if (g_env.current_param->prev == g_env.start)
+		g_env.start = g_env.start->next;
+	else if (g_env.current_param->prev == g_env.end && g_env.nb_params <= g_env.max_params)
+		g_env.end = g_env.end->prev;
 	ft_pop_node(g_env.current_param->prev, (void (*)(void *))&free_param);
 	g_env.current_param->prev = prev;
 	--g_env.nb_params;
 	term_clear();
 	if (!g_env.nb_params)
 		reset_term(1);
-	print_list(0);
+	print_list();
 }
 
 static void		clear_last_searchs(void)
@@ -506,25 +576,60 @@ static int		get_stdin(void)
 	return (0);
 }
 
+static void		increase_range(int i)
+{
+	while (i--)
+		g_env.end = g_env.end->next;
+}
+
+static void		decrease_range(int i)
+{
+	while (i++)
+		g_env.end = g_env.end->prev;
+}
+
 static void		get_new_window_size(void)
 {
 	struct winsize	w_size;
+	int				old_max_params;
+	int				diff;
 
 	ioctl(0, TIOCGWINSZ, &w_size);
 	g_env.screen_height = w_size.ws_row;
 	g_env.screen_width = w_size.ws_col;
+	old_max_params = g_env.max_params;
+	g_env.max_params = g_env.screen_height * (g_env.screen_width / (g_env.max_len + 1));
+	if (g_env.end)
+	{
+		if (g_env.max_params < g_env.nb_params)
+		{
+			if (g_env.nb_params < old_max_params)
+				diff = g_env.max_params - g_env.nb_params;
+			else
+				diff = g_env.max_params - old_max_params;
+			if (diff > 0)	
+				increase_range(diff);
+			else if (diff < 0)
+				decrease_range(diff);
+		}
+		else
+		{
+			g_env.start = g_env.params;
+			g_env.end = g_env.params->prev;
+		}
+	}
 }
 
-static void		update_window(int first)
+static void		update_window(void)
 {
 	term_clear();
 	get_new_window_size();
-	print_list(first);
+	print_list();
 }
 
 static void		move_window_event(int sig)
 {
-	update_window(0);
+	update_window();
 	(void)sig;
 }
 
@@ -534,38 +639,45 @@ static void		stop_term(int sig)
 	(void)sig;
 }
 
+static void		save_term(int sig)
+{
+	struct termios	term;
+	char			cp;
+
+	term = g_env.old_term;
+	init_term(&g_env.old_term);
+	cp = term.c_cc[VSUSP];
+	ft_fputstr(tgetstr("te", NULL), g_env.fd);
+	if (tcsetattr(0, TCSADRAIN, &term) == -1)
+		ft_putendl("tcsetattr failure");
+	ioctl(0, TIOCSTI, &cp);
+	signal(SIGTSTP, SIG_DFL);
+	(void)sig;
+}
+
 static void		take_back(int sig)
 {
-	if (tcsetattr(0, TCSADRAIN, &g_env.old_term) == -1)
+	struct termios	term;
+
+	signals_set();
+	ft_fputstr(tgetstr("ti", NULL), g_env.fd);
+	init_term(&term);
+	g_env.old_term = term;
+	term.c_lflag &= ~(ICANON);
+	term.c_lflag &= ~(ECHO);
+	term.c_cc[VMIN] = 1;
+	term.c_cc[VTIME] = 0;
+	if (tcsetattr(0, TCSADRAIN, &term) == -1)
 	{
 		ft_putendl("tcsetattr failure");
 		exit(-1);
 	}
-	term_clear();
-	print_list(0);
-	get_stdin();
+	update_window();
+	//get_stdin();
 	(void)sig;
 }
 
-static void		save_term(int sig)
-{
-	struct termios	term;
-	char			cp[2];
-
-	term = g_env.old_term;
-	if (tcgetattr(0, &g_env.old_term) == -1)
-		ft_putendl("tcgetattr failure");
-	if (tcsetattr(0, TCSADRAIN, &term) == -1)
-		ft_putendl("tcsetattr failure");
-	signal(SIGTSTP, SIG_DFL);
-	cp[0] = g_env.old_term.c_cc[VSUSP];
-	cp[1] = '\0';
-	ioctl(0, TIOCSTI, cp);
-	term_clear();
-	(void)sig;
-}
-
-static void		signals_set(void)
+void		signals_set(void)
 {
 	signal(SIGABRT, &stop_term);
 	signal(SIGALRM, &stop_term);
@@ -658,9 +770,11 @@ int              main(int ac, char **av)
 		close(g_env.fd);
 		return (-1);
 	}
+	ft_fputstr(tgetstr("ti", NULL), g_env.fd);
 	if (term_clear() == -1)
 		reset_term(1);
-	print_list(1);
+	ft_fputstr(tgetstr("ti", NULL), g_env.fd);
+	print_list();
 	ret = get_stdin();
 	reset_term(0);
 	if (ret)
