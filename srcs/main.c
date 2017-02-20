@@ -508,10 +508,11 @@ static int		get_stdin(void)
 	char			*res;
 	char			buff[4];
 	char			*srch;
+	char			str[] = "SEARCH MODE: ";
+	int			len;
 
 	res = tgetstr("cm", NULL);
 	underline();
-	srch = NULL;
 	while ((ret = read(0, buff, 3)))
 	{
 		buff[ret] = 0;
@@ -556,22 +557,43 @@ static int		get_stdin(void)
 		}
 		else if (buff[0] == 127 || buff[0] == 126)
 		{
+			g_env.search = 0;
 			delete_param();
 			underline();
 		}
 		else if (buff[0] == 10)
 			return (1);
 		else if (buff[0] == 's' && !g_env.search)
+		{
+			srch = NULL;
 			g_env.search = 1;
+			tputs(tgoto(tgetstr("cm", NULL), 0, g_env.screen_height), 1, &my_outc);
+			ft_putstr(str);
+			tputs(tgoto(tgetstr("cm", NULL), CURP->pos.x, CURP->pos.y), 1, &my_outc);
+		}
 		else if (g_env.search && ft_isprint(buff[0]))
 		{
 			free_strjoin(buff, &srch, 0);
+			tputs(tgoto(tgetstr("cm", NULL), 0, g_env.screen_height), 1, &my_outc);
+			ft_putstr(str);
+			len = g_env.screen_width - ft_strlen(srch) - 13;
+			if (len > 0)
+				ft_putstr(srch);
+			else 
+				ft_putstr(srch + ft_strlen(srch) - g_env.screen_width + ft_strlen(str));
+			tputs(tgoto(tgetstr("cm", NULL), CURP->pos.x, CURP->pos.y), 1, &my_outc);
 			search(srch);
 		}
 		else if (buff[0] == 1 && !buff[1])
+		{
+			g_env.search = 0;
 			select_all();
+		}
 		else if (buff[0] == 23 && !buff[1])
+		{
+			g_env.search = 0;
 			deselect_all();
+		}
 	}
 	return (0);
 }
@@ -595,7 +617,7 @@ static void		get_new_window_size(void)
 	int				diff;
 
 	ioctl(0, TIOCGWINSZ, &w_size);
-	g_env.screen_height = w_size.ws_row;
+	g_env.screen_height = w_size.ws_row - 1;
 	g_env.screen_width = w_size.ws_col;
 	old_max_params = g_env.max_params;
 	g_env.max_params = g_env.screen_height * (g_env.screen_width / (g_env.max_len + 1));
@@ -624,7 +646,10 @@ static void		update_window(void)
 {
 	term_clear();
 	get_new_window_size();
-	print_list();
+	if (!g_env.screen_height)
+		ft_putstr("Window too small !");
+	else
+		print_list();
 }
 
 static void		move_window_event(int sig)
