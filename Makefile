@@ -16,7 +16,18 @@ SRC_DIR = ./srcs/
 
 MAIN = main.c
 
-FILES = nmatch.c 
+FILES = nmatch.c \
+		delete.c \
+		get_params.c \
+		left_move.c \
+		right_move.c \
+		vertical_moves.c \
+		read_stdin.c \
+		search.c \
+		select.c \
+		signals.c \
+		term.c \
+		update_window.c
 
 OBJS = $(patsubst %.c, $(DIR_OBJ)%.o, $(FILES)) $(patsubst %.c, $(DIR_OBJ)%.o, $(MAIN))
 
