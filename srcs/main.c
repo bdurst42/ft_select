@@ -200,7 +200,11 @@ static void		print_list(void)
 		compute_pos(param, ++i);
 		tputs(tgoto(res, param->pos.x, param->pos.y), 1, &my_outc);
 		if (param->selected)
+		{
+			if (param->selected == 2)
+				param->selected = 1;
 			reverse_video(param->str);
+		}
 		else
 			ft_fputstr(param->str, g_e.fd);
 		tmp = tmp->next;
@@ -498,12 +502,16 @@ static void	free_strjoin(char *s1, char **s2, char c)
 		free(tmp);
 }
 
-static int		press_arrows_escape(char *buff, int res)
+static int		press_arrows_escape(char *buff, char *res)
 {
 	if (buff[1] == 0)
 	{
 		if (g_e.search)
+		{
 			g_e.search = 0;
+			term_clear();
+			print_list();
+		}
 		else
 			return (0);
 	}
@@ -519,7 +527,7 @@ static int		press_arrows_escape(char *buff, int res)
 	return (1);	
 }
 
-static void		press_space(int res)
+static void		press_space(char *res)
 {
 	if (!CURP->selected)
 	{
@@ -537,7 +545,7 @@ static void		press_space(int res)
 	underline();
 }
 
-static void		press_search(int res, char *buff, char **srch)
+static void		press_search(char *res, char *buff, char **srch)
 {
 	int			len;
 
@@ -564,9 +572,29 @@ static void		press_search(int res, char *buff, char **srch)
 	}
 }
 
+static void		other_keys(char *buff)
+{
+	if (buff[0] == 127 || buff[0] == 126)
+	{
+		g_e.search = 0;
+		delete_param();
+		underline();
+	}
+	else if (buff[0] == 1 && !buff[1])
+	{
+		g_e.search = 0;
+		select_all();
+	}
+	else if (buff[0] == 23 && !buff[1])
+	{
+		g_e.search = 0;
+		deselect_all();
+	}
+}
+
 static int		read_stdin(void)
 {
-	int				ret;
+	int			ret;
 	char			*res;
 	char			buff[4];
 	char			*srch;
@@ -580,26 +608,12 @@ static int		read_stdin(void)
 			return (0);
 		else if (buff[0] == ' ')
 			press_space(res);
-		else if (buff[0] == 127 || buff[0] == 126)
-		{
-			g_e.search = 0;
-			delete_param();
-			underline();
-		}
 		else if (buff[0] == 10)
 			return (1);
-		else if (buff[0] == 1 && !buff[1])
-		{
-			g_e.search = 0;
-			select_all();
-		}
-		else if (buff[0] == 23 && !buff[1])
-		{
-			g_e.search = 0;
-			deselect_all();
-		}
-		else
+		else if ((buff[0] == 's' && !g_e.search) || (g_e.search && ft_isprint(buff[0])))
 			press_search(res, buff, &srch);
+		else
+			other_keys(buff);
 	}
 	return (0);
 }
@@ -772,18 +786,10 @@ void			free_list(void)
 	g_e.params = NULL;
 }
 
-/*int              main(int ac, char **av)
+static int		init_env(int ac, char **av, struct termios *term)
 {
-	struct termios	term;
-	int				ret;
-	char			*name;
+	char	*name;
 
-	if (ac < 2)
-	{
-		ft_putendl("No param");
-		return (-1);
-	}
-	init_term(&term);
 	signals_set();
 	ft_bzero(&g_e, sizeof(g_e));
 	get_new_window_size();
@@ -792,23 +798,38 @@ void			free_list(void)
 	g_e.nb_selected = 0;
 	g_e.search = 0;
 	g_e.cur_p = g_e.params;
-	g_e.old_term = term;
+	g_e.old_term = *term;
 	if (!(isatty(0)) || !(name = ttyname(0)) || ((g_e.fd = open(name, O_WRONLY)) == -1))
 		reset_term(1);
-	term.c_lflag &= ~(ICANON);
-	term.c_lflag &= ~(ECHO);
-	term.c_cc[VMIN] = 1;
-	term.c_cc[VTIME] = 0;
-	if (tcsetattr(0, TCSADRAIN, &term) == -1)
+	term->c_lflag &= ~(ICANON);
+	term->c_lflag &= ~(ECHO);
+	term->c_cc[VMIN] = 1;
+	term->c_cc[VTIME] = 0;
+	if (tcsetattr(0, TCSADRAIN, term) == -1)
 	{
 		ft_putendl("tcsetattr failure");
 		close(g_e.fd);
 		return (-1);
 	}
+	return (0);
+}
+
+int				main(int ac, char **av)
+{
+	struct termios	term;
+	int				ret;
+
+	if (ac < 2)
+	{
+		ft_putendl("No param");
+		return (-1);
+	}
+	init_term(&term);
+	if (init_env(ac, av, &term) == -1)
+			  return (-1);
 	ft_fputstr(tgetstr("ti", NULL), g_e.fd);
 	if (term_clear() == -1)
 		reset_term(1);
-	ft_fputstr(tgetstr("ti", NULL), g_e.fd);
 	print_list();
 	ret = read_stdin();
 	reset_term(0);
@@ -817,4 +838,4 @@ void			free_list(void)
 	close(g_e.fd);
 	free_list();
 	return (0);
-}*/
+}
