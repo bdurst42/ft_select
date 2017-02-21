@@ -498,59 +498,88 @@ static void	free_strjoin(char *s1, char **s2, char c)
 		free(tmp);
 }
 
-static int		get_stdin(void)
+static int		press_arrows_escape(char *buff, int res)
+{
+	if (buff[1] == 0)
+	{
+		if (g_e.search)
+			g_e.search = 0;
+		else
+			return (0);
+	}
+	else if (buff[1] == '[' && buff[2] == 'A')
+		up(res);
+	else if (buff[1] == '[' && buff[2] == 'B')
+		down(res, 1);
+	else if (buff[1] == '[' && buff[2] == 'D')
+		left(res);
+	else if (buff[1] == '[' && buff[2] == 'C')
+		right(res);
+	underline();
+	return (1);	
+}
+
+static void		press_space(int res)
+{
+	if (!CURP->selected)
+	{
+		reverse_video(CURP->str);
+		CURP->selected = 1;
+		++g_e.nb_selected;
+	}
+	else
+	{
+		ft_fputstr(CURP->str, g_e.fd);
+		CURP->selected = 0;
+		--g_e.nb_selected;
+	}
+	down(res, 0);
+	underline();
+}
+
+static void		press_search(int res, char *buff, char **srch)
+{
+	int			len;
+
+	if (buff[0] == 's' && !g_e.search)
+	{
+		*srch = NULL;
+		g_e.search = 1;
+		tputs(tgoto(res, 0, g_e.s_height), 1, &my_outc);
+		ft_putstr("SEARCH MODE: ");
+		tputs(tgoto(res, CURP->pos.x, CURP->pos.y), 1, &my_outc);
+	}
+	else if (g_e.search && ft_isprint(buff[0]))
+	{
+		free_strjoin(buff, srch, 0);
+		tputs(tgoto(res, 0, g_e.s_height), 1, &my_outc);
+		ft_putstr("SEARCH MODE: ");
+		len = g_e.s_width - ft_strlen(*srch) - 13;
+		if (len > 0)
+			ft_putstr(*srch);
+		else
+			ft_putstr(*srch + ft_strlen(*srch) - g_e.s_width + 13);
+		tputs(tgoto(res, CURP->pos.x, CURP->pos.y), 1, &my_outc);
+		search(*srch);
+	}
+}
+
+static int		read_stdin(void)
 {
 	int				ret;
 	char			*res;
 	char			buff[4];
 	char			*srch;
-	char			str[] = "SEARCH MODE: ";
-	int			len;
 
 	res = CM;
 	underline();
 	while ((ret = read(0, buff, 3)))
 	{
 		buff[ret] = 0;
-		if (buff[0] == 27)
-		{
-			if (buff[1] == 0)
-			{
-				if (g_e.search)
-				{
-					g_e.search = 0;
-					srch = NULL;
-				}
-				else
-					return (0);
-			}
-			else if (buff[1] == '[' && buff[2] == 'A')
-				up(res);
-			else if (buff[1] == '[' && buff[2] == 'B')
-				down(res, 1);
-			else if (buff[1] == '[' && buff[2] == 'D')
-				left(res);
-			else if (buff[1] == '[' && buff[2] == 'C')
-				right(res);
-			underline();
-		}
+		if (buff[0] == 27 && !press_arrows_escape(buff, res))
+			return (0);
 		else if (buff[0] == ' ')
-		{
-			if (!CURP->selected)
-			{
-				reverse_video(CURP->str);
-				CURP->selected = 1;
-				++g_e.nb_selected;
-			}
-			else
-			{
-				ft_fputstr(CURP->str, g_e.fd);
-				CURP->selected = 0;
-				--g_e.nb_selected;
-			}
-			down(res, 0);
-			underline();
-		}
+			press_space(res);
 		else if (buff[0] == 127 || buff[0] == 126)
 		{
 			g_e.search = 0;
@@ -559,27 +588,6 @@ static int		get_stdin(void)
 		}
 		else if (buff[0] == 10)
 			return (1);
-		else if (buff[0] == 's' && !g_e.search)
-		{
-			srch = NULL;
-			g_e.search = 1;
-			tputs(tgoto(CM, 0, g_e.s_height), 1, &my_outc);
-			ft_putstr(str);
-			tputs(tgoto(CM, CURP->pos.x, CURP->pos.y), 1, &my_outc);
-		}
-		else if (g_e.search && ft_isprint(buff[0]))
-		{
-			free_strjoin(buff, &srch, 0);
-			tputs(tgoto(CM, 0, g_e.s_height), 1, &my_outc);
-			ft_putstr(str);
-			len = g_e.s_width - ft_strlen(srch) - 13;
-			if (len > 0)
-				ft_putstr(srch);
-			else
-				ft_putstr(srch + ft_strlen(srch) - g_e.s_width + ft_strlen(str));
-			tputs(tgoto(CM, CURP->pos.x, CURP->pos.y), 1, &my_outc);
-			search(srch);
-		}
 		else if (buff[0] == 1 && !buff[1])
 		{
 			g_e.search = 0;
@@ -590,6 +598,8 @@ static int		get_stdin(void)
 			g_e.search = 0;
 			deselect_all();
 		}
+		else
+			press_search(res, buff, &srch);
 	}
 	return (0);
 }
@@ -800,7 +810,7 @@ void			free_list(void)
 		reset_term(1);
 	ft_fputstr(tgetstr("ti", NULL), g_e.fd);
 	print_list();
-	ret = get_stdin();
+	ret = read_stdin();
 	reset_term(0);
 	if (ret)
 		display_selected_param();
