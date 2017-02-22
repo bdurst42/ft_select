@@ -17,8 +17,7 @@ static void	stop_term(int sig)
 	{
 		term = &g_e.old_term;
 		cp = term->c_cc[VSUSP];
-		tputs(tgetstr("te", NULL), 1, &my_outc);
-		//ft_fputstr(tgetstr("te", NULL), g_e.fd);
+		ft_fputstr(tgetstr("te", NULL), g_e.fd);
 		if (tcsetattr(0, TCSADRAIN, term) == -1)
 			ft_putendl("tcsetattr failure");
 		ioctl(0, TIOCSTI, &cp);
@@ -32,10 +31,9 @@ static void	take_back(int sig)
 	struct termios	term;
 
 	signals_set();
-	tputs(tgetstr("ti", NULL), 1, &my_outc);
-	//ft_fputstr(tgetstr("ti", NULL), g_e.fd);
+	ft_fputstr(tgetstr("ti", NULL), g_e.fd);
 	init_term(&term);
-	g_e.old_term = term;
+	term = g_e.old_term;
 	term.c_lflag &= ~(ICANON);
 	term.c_lflag &= ~(ECHO);
 	term.c_cc[VMIN] = 1;
@@ -57,10 +55,10 @@ void		signals_set(void)
 	while (++i < 32)
 	{
 		if (i == SIGCONT)
-			signal(SIGCONT, &take_back);
+			signal(i, &take_back);
 		else if (i == SIGWINCH)
-			signal(SIGWINCH, &move_window_event);
+			signal(i, &move_window_event);
 		else
-			signal(SIGABRT, &stop_term);
+			signal(i, &stop_term);
 	}
 }
